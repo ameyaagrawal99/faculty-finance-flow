@@ -22,7 +22,7 @@ const App = () => (
       <SettingsProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <SidebarProvider>
             <div className="min-h-screen flex w-full bg-transparent">
               <AppSidebar />

@@ -6,6 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: mode === "production" ? "/faculty-finance-flow/" : "/",
   server: {
     host: "::",
     port: 8080,
@@ -26,9 +27,9 @@ export default defineConfig(({ mode }) => ({
         theme_color: "#1e3a6e",
         background_color: "#f5f6f8",
         display: "standalone",
-        start_url: "/",
+        start_url: ".",
         icons: [
-          { src: "/favicon.ico", sizes: "64x64", type: "image/x-icon" },
+          { src: "favicon.ico", sizes: "64x64", type: "image/x-icon" },
         ],
       },
     }),
