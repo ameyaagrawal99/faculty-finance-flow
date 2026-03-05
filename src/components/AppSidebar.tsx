@@ -1,4 +1,4 @@
-import { Calculator, BarChart3, Table2, Settings, IndianRupee } from "lucide-react";
+import { Calculator, BarChart3, Table2, Settings, IndianRupee, Receipt } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
