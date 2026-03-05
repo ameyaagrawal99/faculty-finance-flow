@@ -97,7 +97,7 @@ export const DEFAULT_SETTINGS: GlobalSettings = {
   healthInsurance: 10000,
   phdIncentiveIncrements: 0,
   entryPayOverrides: {},
-  pensionScheme: "NPS",
+  pensionScheme: "OPS",
   incrementMonth: 7,
   stagnationEnabled: false,
   stagnationYears: 10,

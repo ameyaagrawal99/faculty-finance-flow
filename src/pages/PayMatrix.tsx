@@ -39,7 +39,7 @@ export default function PayMatrixPage() {
 
   // Compensation table data
   const compData = useMemo(() => {
-    const rows: Array<{ levelId: string; levelName: string; designation: string; cellIndex: number; basic: number; da: number; hra: number; ta: number; gross: number; ppf: number; gratuity: number; perks: number; ctc: number }> = [];
+    const rows: Array<{ levelId: string; levelName: string; designation: string; cellIndex: number; monthlyBasic: number; basic: number; da: number; hra: number; ta: number; gross: number; ppf: number; gratuity: number; perks: number; ctc: number }> = [];
     PAY_MATRIX.filter((l) => compLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings)).forEach((level) => {
       const cellCount = level.capType === "NO_CAP" ? level.payCells.length + 3 : level.payCells.length;
       for (let i = 0; i < cellCount; i++) {
@@ -51,6 +51,7 @@ export default function PayMatrixPage() {
           levelName: level.levelName,
           designation: level.designation,
           cellIndex: i,
+          monthlyBasic: s.basicPay,
           basic: s.basicPay * mult,
           da: s.da * mult,
           hra: s.hra * mult,
@@ -237,6 +238,7 @@ export default function PayMatrixPage() {
                     <TableRow>
                       <TableHead className="sticky left-0 bg-card z-10 min-w-[140px]">Position</TableHead>
                       <TableHead className="text-center">Cell</TableHead>
+                      {isAnnual && <TableHead className="text-right">Basic/mo</TableHead>}
                       <TableHead className="text-right">Basic</TableHead>
                       <TableHead className="text-right">DA</TableHead>
                       <TableHead className="text-right">HRA</TableHead>
@@ -263,6 +265,7 @@ export default function PayMatrixPage() {
                             )}
                           </TableCell>
                           <TableCell className={`text-center text-xs ${isEntry ? "font-bold text-primary" : ""}`}>{row.cellIndex + 1}{isEntry ? " ★" : ""}</TableCell>
+                          {isAnnual && <TableCell className="text-right text-xs text-muted-foreground">{fmt(row.monthlyBasic)}</TableCell>}
                           <TableCell className="text-right text-xs">{fmt(row.basic)}</TableCell>
                           <TableCell className="text-right text-xs">{fmt(row.da)}</TableCell>
                           <TableCell className="text-right text-xs">{fmt(row.hra)}</TableCell>
