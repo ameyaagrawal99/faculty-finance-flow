@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { PAY_MATRIX, FACULTY_LEVELS, getLevelById } from "@/lib/pay-matrix-data";
-import { getBasicPayAtCell, calculateSalary } from "@/lib/salary-engine";
+import { getBasicPayAtCell, calculateSalary, getEffectiveLevel } from "@/lib/salary-engine";
 import { useSettings } from "@/lib/settings-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
