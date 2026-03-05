@@ -19,6 +19,7 @@ const navItems = [
   { title: "Calculator", url: "/", icon: Calculator },
   { title: "Compare Scenarios", url: "/compare", icon: BarChart3 },
   { title: "Pay Matrix", url: "/pay-matrix", icon: Table2 },
+  { title: "Arrears", url: "/arrears", icon: Receipt },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

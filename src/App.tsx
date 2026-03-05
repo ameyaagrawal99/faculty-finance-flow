@@ -37,6 +37,7 @@ const App = () => (
                     <Route path="/" element={<Calculator />} />
                     <Route path="/compare" element={<Compare />} />
                     <Route path="/pay-matrix" element={<PayMatrix />} />
+                    <Route path="/arrears" element={<Arrears />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
