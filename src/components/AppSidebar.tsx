@@ -1,4 +1,4 @@
-import { Calculator, BarChart3, Table2, Settings, IndianRupee } from "lucide-react";
+import { Calculator, BarChart3, Table2, Settings, IndianRupee, Receipt } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Calculator", url: "/", icon: Calculator },
   { title: "Compare Scenarios", url: "/compare", icon: BarChart3 },
   { title: "Pay Matrix", url: "/pay-matrix", icon: Table2 },
+  { title: "Arrears", url: "/arrears", icon: Receipt },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

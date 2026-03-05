@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
 import { useSettings } from "@/lib/settings-context";
-import { PAY_MATRIX, getLevelById, FACULTY_LEVELS } from "@/lib/pay-matrix-data";
-import { calculateSalary, getBasicPayAtCell, simulatePromotion, applyAnnualIncrement, canIncrement } from "@/lib/salary-engine";
+import { EdgeCaseInputs } from "@/lib/types";
+import { PAY_MATRIX, getLevelById } from "@/lib/pay-matrix-data";
+import { calculateSalary, getBasicPayAtCell, simulatePromotion, applyAnnualIncrement, canIncrement, getEffectiveLevel, applyPhdIncentive, applyPayBunching } from "@/lib/salary-engine";
 import { SalaryBreakdownCard } from "@/components/SalaryBreakdownCard";
 import { InlineSettings } from "@/components/InlineSettings";
+import { EdgeCaseControls } from "@/components/EdgeCaseControls";
+import { QualificationInfo } from "@/components/QualificationInfo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,15 +17,29 @@ export default function CalculatorPage() {
   const { settings } = useSettings();
   const [selectedLevel, setSelectedLevel] = useState("L12");
   const [selectedCell, setSelectedCell] = useState(0);
+  const [edgeCases, setEdgeCases] = useState<EdgeCaseInputs>({});
 
-  const level = getLevelById(selectedLevel);
+  const rawLevel = getLevelById(selectedLevel);
+  const level = rawLevel ? getEffectiveLevel(rawLevel, settings) : null;
   const allLevels = PAY_MATRIX;
 
-  const basicPay = level ? getBasicPayAtCell(level, selectedCell) : 0;
-  const salary = useMemo(() => calculateSalary(basicPay, settings), [basicPay, settings]);
+  let effectiveCell = selectedCell;
 
-  const incrementResult = level ? applyAnnualIncrement(level, selectedCell) : null;
-  const promotionResult = simulatePromotion(selectedLevel, selectedCell);
+  // Apply PhD incentive if set
+  if (level && edgeCases.phdIncrements && edgeCases.phdIncrements > 0) {
+    const phd = applyPhdIncentive(level, selectedCell, edgeCases.phdIncrements);
+    effectiveCell = phd.newCellIndex;
+  }
+
+  const basicPay = level ? getBasicPayAtCell(level, effectiveCell) : 0;
+  
+  // Apply pay bunching
+  const finalBasicPay = edgeCases.payBunching ? applyPayBunching(basicPay) : basicPay;
+
+  const salary = useMemo(() => calculateSalary(finalBasicPay, settings), [finalBasicPay, settings]);
+
+  const incrementResult = level ? applyAnnualIncrement(level, effectiveCell) : null;
+  const promotionResult = simulatePromotion(selectedLevel, effectiveCell, settings);
 
   const maxCells = level
     ? level.capType === "NO_CAP"
@@ -57,8 +74,8 @@ export default function CalculatorPage() {
         </p>
       </div>
 
-      {/* Inline Settings */}
       <InlineSettings />
+      <EdgeCaseControls edgeCases={edgeCases} onChange={setEdgeCases} />
 
       {/* Selection Controls */}
       <Card>
@@ -99,6 +116,22 @@ export default function CalculatorPage() {
             </div>
           </div>
 
+          {/* Edge case indicators */}
+          {(edgeCases.phdIncrements || edgeCases.payBunching) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {edgeCases.phdIncrements && edgeCases.phdIncrements > 0 && (
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                  PhD +{edgeCases.phdIncrements} increment(s) → Cell {effectiveCell + 1}
+                </span>
+              )}
+              {edgeCases.payBunching && (
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                  Pay bunching +3% applied
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 mt-4">
             <Button
@@ -109,9 +142,7 @@ export default function CalculatorPage() {
             >
               <TrendingUp className="h-4 w-4" />
               Apply Increment (+3%)
-              {incrementResult?.blocked && (
-                <AlertTriangle className="h-3 w-3 text-destructive" />
-              )}
+              {incrementResult?.blocked && <AlertTriangle className="h-3 w-3 text-destructive" />}
             </Button>
             {promotionResult && (
               <Button onClick={handlePromotion} className="gap-2">
@@ -132,14 +163,17 @@ export default function CalculatorPage() {
         </CardContent>
       </Card>
 
+      {/* Qualification Info */}
+      <QualificationInfo levelId={selectedLevel} />
+
       {/* Salary Breakdown */}
       {level && (
         <SalaryBreakdownCard
           salary={salary}
-          basicPay={basicPay}
+          basicPay={finalBasicPay}
           levelName={level.levelName}
           designation={level.designation}
-          cellIndex={selectedCell}
+          cellIndex={effectiveCell}
         />
       )}
 
@@ -156,7 +190,7 @@ export default function CalculatorPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Current Basic</p>
-                <p className="font-semibold">₹{basicPay.toLocaleString("en-IN")}</p>
+                <p className="font-semibold">₹{finalBasicPay.toLocaleString("en-IN")}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">After Notional (+3%)</p>

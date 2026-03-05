@@ -9,6 +9,7 @@ import { SettingsProvider } from "@/lib/settings-context";
 import Calculator from "./pages/Calculator";
 import Compare from "./pages/Compare";
 import PayMatrix from "./pages/PayMatrix";
+import Arrears from "./pages/Arrears";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,7 @@ const App = () => (
                     <Route path="/" element={<Calculator />} />
                     <Route path="/compare" element={<Compare />} />
                     <Route path="/pay-matrix" element={<PayMatrix />} />
+                    <Route path="/arrears" element={<Arrears />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

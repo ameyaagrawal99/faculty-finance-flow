@@ -7,26 +7,38 @@ export interface AcademicLevel {
   revisedEntryPay: number;
   payCells: number[];
   capType: CapType;
-  maxCellIndex?: number; // index in payCells where truncation occurs (only for TRUNCATED)
+  maxCellIndex?: number;
 }
 
 export interface PromotionPath {
-  from: string; // level id
-  to: string;   // level id
+  from: string;
+  to: string;
 }
 
+export type PensionScheme = "NPS" | "OPS";
+export type IncrementMonth = 1 | 7;
+
 export interface GlobalSettings {
-  incrementRate: number;       // default 0.03
-  daPercent: number;           // default 0.58
-  hraPercent: number;          // default 0.20
+  incrementRate: number;
+  daPercent: number;
+  hraPercent: number;
   hraCityType: "X" | "Y" | "Z";
-  taMonthly: number;           // default 5600
-  ppfPercent: number;          // default 0.12
-  gratuityPercent: number;     // default 0.0481
-  housingSupport: number;      // annual, default 400000
-  cpda: number;                // annual, default 150000
-  healthInsurance: number;     // annual, default 10000
-  phdIncentiveIncrements: number; // default 0
+  hraEnabled: boolean;
+  hraOverride: number | null;
+  taMonthly: number;
+  ppfPercent: number;
+  gratuityPercent: number;
+  housingSupport: number;
+  cpda: number;
+  healthInsurance: number;
+  phdIncentiveIncrements: number;
+  // New Phase 2 fields
+  entryPayOverrides: Record<string, number>;
+  pensionScheme: PensionScheme;
+  incrementMonth: IncrementMonth;
+  stagnationEnabled: boolean;
+  stagnationYears: number;
+  institutionCluster: string;
 }
 
 export interface SalaryBreakdownResult {
@@ -42,6 +54,9 @@ export interface SalaryBreakdownResult {
   perksMonthly: number;
   ctcMonthly: number;
   ctcAnnual: number;
+  // NPS fields
+  npsEmployee: number;
+  npsEmployer: number;
 }
 
 export interface FacultyCase {
@@ -51,6 +66,14 @@ export interface FacultyCase {
   cellIndex: number;
   yearsOfService: number;
   hasPhdIncentive: boolean;
+}
+
+export interface EdgeCaseInputs {
+  joiningMonth?: number; // 1-12, for mid-year joining
+  payBunching?: boolean;
+  phdIncrementYear?: number; // year at which PhD obtained
+  phdIncrements?: number;
+  serviceBreakMonths?: number;
 }
 
 export const HRA_RATES: Record<string, number> = {
@@ -64,6 +87,8 @@ export const DEFAULT_SETTINGS: GlobalSettings = {
   daPercent: 0.58,
   hraPercent: 0.20,
   hraCityType: "Y",
+  hraEnabled: false,
+  hraOverride: null,
   taMonthly: 5600,
   ppfPercent: 0.12,
   gratuityPercent: 0.0481,
@@ -71,4 +96,10 @@ export const DEFAULT_SETTINGS: GlobalSettings = {
   cpda: 150000,
   healthInsurance: 10000,
   phdIncentiveIncrements: 0,
+  entryPayOverrides: {},
+  pensionScheme: "NPS",
+  incrementMonth: 7,
+  stagnationEnabled: false,
+  stagnationYears: 10,
+  institutionCluster: "BITS",
 };

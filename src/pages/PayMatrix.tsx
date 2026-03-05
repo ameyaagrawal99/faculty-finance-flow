@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { PAY_MATRIX, FACULTY_LEVELS, getLevelById } from "@/lib/pay-matrix-data";
-import { getBasicPayAtCell, calculateSalary } from "@/lib/salary-engine";
+import { getBasicPayAtCell, calculateSalary, getEffectiveLevel } from "@/lib/salary-engine";
 import { useSettings } from "@/lib/settings-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -34,13 +34,13 @@ export default function PayMatrixPage() {
     setter(next);
   };
 
-  const levels = PAY_MATRIX.filter((l) => visibleLevels.has(l.id));
+  const levels = PAY_MATRIX.filter((l) => visibleLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings));
   const maxRows = levels.length > 0 ? Math.max(...levels.map((l) => l.capType === "NO_CAP" ? l.payCells.length + 5 : l.payCells.length)) : 0;
 
   // Compensation table data
   const compData = useMemo(() => {
     const rows: Array<{ levelId: string; levelName: string; designation: string; cellIndex: number; basic: number; da: number; hra: number; ta: number; gross: number; ppf: number; gratuity: number; perks: number; ctc: number }> = [];
-    PAY_MATRIX.filter((l) => compLevels.has(l.id)).forEach((level) => {
+    PAY_MATRIX.filter((l) => compLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings)).forEach((level) => {
       const cellCount = level.capType === "NO_CAP" ? level.payCells.length + 3 : level.payCells.length;
       for (let i = 0; i < cellCount; i++) {
         if (level.capType === "TRUNCATED" && level.maxCellIndex !== undefined && i > level.maxCellIndex) break;

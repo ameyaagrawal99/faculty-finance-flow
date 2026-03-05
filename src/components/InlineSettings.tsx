@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Settings2, ChevronDown, RotateCcw } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +20,9 @@ export function InlineSettings() {
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <span>Calculation Settings</span>
           <span className="text-xs text-muted-foreground">
-            DA {(settings.daPercent * 100).toFixed(0)}% · HRA {(settings.hraPercent * 100).toFixed(0)}% · TA ₹{settings.taMonthly}
+            DA {(settings.daPercent * 100).toFixed(0)}%
+            {settings.hraEnabled ? ` · HRA ${settings.hraOverride !== null ? (settings.hraOverride * 100).toFixed(0) : settings.hraCityType}` : " · No HRA"}
+            {" "}· TA ₹{settings.taMonthly} · {settings.pensionScheme}
           </span>
         </div>
         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
@@ -35,17 +38,40 @@ export function InlineSettings() {
               min={0} max={100} step={1}
             />
             <div className="space-y-1">
-              <Label className="text-xs">HRA City</Label>
-              <Select value={settings.hraCityType} onValueChange={(v: "X" | "Y" | "Z") => updateSettings({ hraCityType: v })}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="X">X City (30%)</SelectItem>
-                  <SelectItem value="Y">Y City (20%)</SelectItem>
-                  <SelectItem value="Z">Z City (10%)</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">HRA</Label>
+                <Switch
+                  checked={settings.hraEnabled}
+                  onCheckedChange={(v) => updateSettings({ hraEnabled: v })}
+                  className="scale-75"
+                />
+              </div>
+              {settings.hraEnabled ? (
+                <div className="space-y-1">
+                  <Select value={settings.hraCityType} onValueChange={(v: "X" | "Y" | "Z") => updateSettings({ hraCityType: v, hraOverride: null })}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="X">X City (30%)</SelectItem>
+                      <SelectItem value="Y">Y City (20%)</SelectItem>
+                      <SelectItem value="Z">Z City (10%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    placeholder="Override %"
+                    value={settings.hraOverride !== null ? (settings.hraOverride * 100).toFixed(0) : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateSettings({ hraOverride: val ? Number(val) / 100 : null });
+                    }}
+                    className="h-7 text-xs"
+                  />
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">HRA disabled</p>
+              )}
             </div>
             <NumberField
               label="TA (₹/mo)"
@@ -60,7 +86,7 @@ export function InlineSettings() {
             />
           </div>
 
-          {/* Row 2: Employer contributions */}
+          {/* Row 2: Employer contributions + pension */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <SliderField
               label="PPF %"
@@ -74,6 +100,34 @@ export function InlineSettings() {
               onChange={(v) => updateSettings({ gratuityPercent: v / 100 })}
               min={0} max={10} step={0.01}
             />
+            <div className="space-y-1">
+              <Label className="text-xs">Pension</Label>
+              <Select value={settings.pensionScheme} onValueChange={(v: "NPS" | "OPS") => updateSettings({ pensionScheme: v })}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NPS">NPS (10%+14%)</SelectItem>
+                  <SelectItem value="OPS">OPS (Defined Benefit)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Increment Month</Label>
+              <Select value={String(settings.incrementMonth)} onValueChange={(v) => updateSettings({ incrementMonth: Number(v) as 1 | 7 })}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">July (1st Jul)</SelectItem>
+                  <SelectItem value="1">January (1st Jan)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 3: Perks + stagnation */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <NumberField
               label="Housing (₹/yr)"
               value={settings.housingSupport}
@@ -84,20 +138,47 @@ export function InlineSettings() {
               value={settings.cpda}
               onChange={(v) => updateSettings({ cpda: v })}
             />
-          </div>
-
-          {/* Row 3: Remaining */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <NumberField
               label="Health Ins. (₹/yr)"
               value={settings.healthInsurance}
               onChange={(v) => updateSettings({ healthInsurance: v })}
             />
-            <div className="flex items-end">
-              <Button variant="ghost" size="sm" onClick={resetSettings} className="gap-1 text-xs h-8">
-                <RotateCcw className="h-3 w-3" /> Reset All
-              </Button>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Stagnation</Label>
+                <Switch
+                  checked={settings.stagnationEnabled}
+                  onCheckedChange={(v) => updateSettings({ stagnationEnabled: v })}
+                  className="scale-75"
+                />
+              </div>
+              {settings.stagnationEnabled && (
+                <Input
+                  type="number"
+                  value={settings.stagnationYears}
+                  onChange={(e) => updateSettings({ stagnationYears: Number(e.target.value) })}
+                  className="h-7 text-xs"
+                  min={1}
+                />
+              )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Cluster</Label>
+              <Select value={settings.institutionCluster} onValueChange={(v) => updateSettings({ institutionCluster: v })}>
+                <SelectTrigger className="h-7 text-xs w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BITS">Engineering / BITS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="ghost" size="sm" onClick={resetSettings} className="gap-1 text-xs h-8">
+              <RotateCcw className="h-3 w-3" /> Reset All
+            </Button>
           </div>
         </div>
       </CollapsibleContent>
