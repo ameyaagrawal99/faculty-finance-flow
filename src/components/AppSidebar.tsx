@@ -1,6 +1,5 @@
 import { Calculator, BarChart3, Table2, Settings, IndianRupee, Receipt } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -26,26 +25,25 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/70">
+      <SidebarHeader className="p-4 pb-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-black/20">
             <IndianRupee className="h-4 w-4" />
           </div>
           {!collapsed && (
             <div>
-              <h2 className="text-sm font-bold text-sidebar-foreground">Faculty Salary</h2>
-              <p className="text-xs text-sidebar-foreground/60">Calculator</p>
+              <h2 className="text-sm font-semibold tracking-tight text-sidebar-foreground">Faculty Finance Flow</h2>
+              <p className="text-xs text-sidebar-foreground/65">Smart compensation toolkit</p>
             </div>
           )}
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[11px] uppercase tracking-[0.16em]">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -54,8 +52,8 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="rounded-lg transition-all hover:bg-sidebar-accent/60"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium shadow-sm"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -67,9 +65,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 pt-2">
         {!collapsed && (
-          <p className="text-xs text-sidebar-foreground/40">UGC 7th CPC Pay Matrix</p>
+          <p className="text-xs leading-relaxed text-sidebar-foreground/45">Modernized UI · UGC 7th CPC Pay Matrix</p>
         )}
       </SidebarFooter>
     </Sidebar>

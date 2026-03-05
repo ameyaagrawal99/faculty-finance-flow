@@ -2,9 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap");
+
 @layer base {
   :root {
-    --background: 220 20% 97%;
+    --background: 220 33% 98%;
     --foreground: 224 30% 12%;
 
     --card: 0 0% 100%;
@@ -13,26 +15,26 @@
     --popover: 0 0% 100%;
     --popover-foreground: 224 30% 12%;
 
-    --primary: 230 60% 38%;
+    --primary: 230 70% 48%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 38 90% 55%;
+    --secondary: 196 85% 46%;
     --secondary-foreground: 224 30% 12%;
 
-    --muted: 220 14% 92%;
+    --muted: 220 22% 94%;
     --muted-foreground: 220 10% 46%;
 
-    --accent: 38 90% 55%;
-    --accent-foreground: 224 30% 12%;
+    --accent: 230 64% 96%;
+    --accent-foreground: 230 62% 35%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 87%;
-    --input: 220 13% 87%;
-    --ring: 230 60% 38%;
+    --border: 220 22% 88%;
+    --input: 220 22% 88%;
+    --ring: 230 70% 48%;
 
-    --radius: 0.625rem;
+    --radius: 0.9rem;
 
     --chart-1: 230 60% 38%;
     --chart-2: 38 90% 55%;
@@ -40,14 +42,14 @@
     --chart-4: 280 50% 50%;
     --chart-5: 10 70% 50%;
 
-    --sidebar-background: 230 40% 18%;
-    --sidebar-foreground: 220 20% 90%;
-    --sidebar-primary: 38 90% 55%;
-    --sidebar-primary-foreground: 224 30% 12%;
-    --sidebar-accent: 230 30% 25%;
-    --sidebar-accent-foreground: 220 20% 90%;
-    --sidebar-border: 230 25% 28%;
-    --sidebar-ring: 38 90% 55%;
+    --sidebar-background: 228 37% 14%;
+    --sidebar-foreground: 220 24% 92%;
+    --sidebar-primary: 200 95% 66%;
+    --sidebar-primary-foreground: 228 37% 14%;
+    --sidebar-accent: 228 28% 22%;
+    --sidebar-accent-foreground: 220 24% 92%;
+    --sidebar-border: 228 25% 24%;
+    --sidebar-ring: 200 95% 66%;
   }
 
   .dark {
@@ -96,7 +98,17 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background-image: radial-gradient(circle at top left, hsl(230 90% 98%) 0%, hsl(var(--background)) 38%);
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+    letter-spacing: -0.015em;
   }
 }
