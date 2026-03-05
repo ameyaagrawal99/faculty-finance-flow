@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useSettings } from "@/lib/settings-context";
 import { EdgeCaseInputs } from "@/lib/types";
 import { PAY_MATRIX, getLevelById } from "@/lib/pay-matrix-data";
-import { calculateSalary, getBasicPayAtCell, simulatePromotion, applyAnnualIncrement, canIncrement, getEffectiveLevel, applyPhdIncentive, applyPayBunching } from "@/lib/salary-engine";
+import { calculateSalary, getBasicPayAtCell, simulatePromotion, applyAnnualIncrement, getEffectiveLevel, applyPhdIncentive, applyPayBunching } from "@/lib/salary-engine";
 import { SalaryBreakdownCard } from "@/components/SalaryBreakdownCard";
 import { InlineSettings } from "@/components/InlineSettings";
 import { EdgeCaseControls } from "@/components/EdgeCaseControls";
@@ -67,10 +67,10 @@ export default function CalculatorPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Salary Calculator</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Calculate faculty compensation based on UGC 7th CPC pay matrix
+      <div className="rounded-2xl border border-border/70 bg-card/80 p-5 sm:p-6 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold">Salary Calculator</h1>
+        <p className="text-muted-foreground text-sm sm:text-base mt-2 max-w-2xl">
+          Calculate faculty compensation based on the UGC 7th CPC pay matrix with a cleaner workflow for desktop and mobile.
         </p>
       </div>
 
@@ -78,12 +78,13 @@ export default function CalculatorPage() {
       <EdgeCaseControls edgeCases={edgeCases} onChange={setEdgeCases} />
 
       {/* Selection Controls */}
-      <Card>
+      <Card className="border-border/70 shadow-sm">
         <CardHeader className="pb-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Core inputs</p>
           <CardTitle className="text-base">Select Position</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
             <div className="space-y-2">
               <Label>Designation / Level</Label>
               <Select value={selectedLevel} onValueChange={(v) => { setSelectedLevel(v); setSelectedCell(0); }}>
@@ -133,7 +134,7 @@ export default function CalculatorPage() {
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap gap-3 mt-4">
+          <div className="flex flex-wrap gap-3 mt-5">
             <Button
               variant="outline"
               onClick={handleIncrement}
@@ -179,7 +180,7 @@ export default function CalculatorPage() {
 
       {/* Promotion Preview */}
       {promotionResult && (
-        <Card className="border-primary/20 bg-primary/[0.02]">
+        <Card className="border-primary/20 bg-primary/[0.04] shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <ArrowUp className="h-4 w-4 text-primary" />
