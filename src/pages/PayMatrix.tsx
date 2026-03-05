@@ -265,6 +265,7 @@ export default function PayMatrixPage() {
                             )}
                           </TableCell>
                           <TableCell className={`text-center text-xs ${isEntry ? "font-bold text-primary" : ""}`}>{row.cellIndex + 1}{isEntry ? " ★" : ""}</TableCell>
+                          {isAnnual && <TableCell className="text-right text-xs text-muted-foreground">{fmt(row.monthlyBasic)}</TableCell>}
                           <TableCell className="text-right text-xs">{fmt(row.basic)}</TableCell>
                           <TableCell className="text-right text-xs">{fmt(row.da)}</TableCell>
                           <TableCell className="text-right text-xs">{fmt(row.hra)}</TableCell>
