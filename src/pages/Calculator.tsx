@@ -57,6 +57,9 @@ export default function CalculatorPage() {
         </p>
       </div>
 
+      {/* Inline Settings */}
+      <InlineSettings />
+
       {/* Selection Controls */}
       <Card>
         <CardHeader className="pb-3">
