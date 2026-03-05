@@ -3,6 +3,7 @@ import { useSettings } from "@/lib/settings-context";
 import { PAY_MATRIX, getLevelById, FACULTY_LEVELS } from "@/lib/pay-matrix-data";
 import { calculateSalary, getBasicPayAtCell, simulatePromotion, applyAnnualIncrement, canIncrement } from "@/lib/salary-engine";
 import { SalaryBreakdownCard } from "@/components/SalaryBreakdownCard";
+import { InlineSettings } from "@/components/InlineSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,9 @@ export default function CalculatorPage() {
           Calculate faculty compensation based on UGC 7th CPC pay matrix
         </p>
       </div>
+
+      {/* Inline Settings */}
+      <InlineSettings />
 
       {/* Selection Controls */}
       <Card>
