@@ -34,7 +34,7 @@ export default function PayMatrixPage() {
     setter(next);
   };
 
-  const levels = PAY_MATRIX.filter((l) => visibleLevels.has(l.id));
+  const levels = PAY_MATRIX.filter((l) => visibleLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings));
   const maxRows = levels.length > 0 ? Math.max(...levels.map((l) => l.capType === "NO_CAP" ? l.payCells.length + 5 : l.payCells.length)) : 0;
 
   // Compensation table data
