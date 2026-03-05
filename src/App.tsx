@@ -9,6 +9,7 @@ import { SettingsProvider } from "@/lib/settings-context";
 import Calculator from "./pages/Calculator";
 import Compare from "./pages/Compare";
 import PayMatrix from "./pages/PayMatrix";
+import Arrears from "./pages/Arrears";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
