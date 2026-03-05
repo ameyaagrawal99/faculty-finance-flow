@@ -238,6 +238,7 @@ export default function PayMatrixPage() {
                     <TableRow>
                       <TableHead className="sticky left-0 bg-card z-10 min-w-[140px]">Position</TableHead>
                       <TableHead className="text-center">Cell</TableHead>
+                      {isAnnual && <TableHead className="text-right">Basic/mo</TableHead>}
                       <TableHead className="text-right">Basic</TableHead>
                       <TableHead className="text-right">DA</TableHead>
                       <TableHead className="text-right">HRA</TableHead>
