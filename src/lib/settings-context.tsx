@@ -31,8 +31,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const updateSettings = (partial: Partial<GlobalSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...partial };
-      // Sync HRA percent when city type changes
-      if (partial.hraCityType) {
+      // Sync HRA percent when city type changes and HRA is enabled
+      if (partial.hraCityType && next.hraEnabled && next.hraOverride === null) {
         next.hraPercent = HRA_RATES[partial.hraCityType] ?? prev.hraPercent;
       }
       return next;
