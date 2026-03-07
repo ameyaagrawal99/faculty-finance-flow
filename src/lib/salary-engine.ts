@@ -1,4 +1,5 @@
 import { AcademicLevel, GlobalSettings, SalaryBreakdownResult, HRA_RATES, EdgeCaseInputs } from "./types";
+import { getDAForYear } from "./da-schedule";
 import { getLevelById, PROMOTION_PATHS } from "./pay-matrix-data";
 
 /** Round up to next 100 */
@@ -243,6 +244,7 @@ export function projectGrowth(
   settings: GlobalSettings,
   promotionAtYear?: number,
   edgeCases?: EdgeCaseInputs,
+  startYear?: number,
 ): Array<{
   year: number;
   levelId: string;
@@ -302,7 +304,12 @@ export function projectGrowth(
       }
     }
 
-    const salary = calculateSalary(basic, settings);
+    let effectiveSettings = settings;
+    if (settings.daMode === "projected" && startYear !== undefined) {
+      const projectedDA = getDAForYear(startYear + y);
+      effectiveSettings = { ...settings, daPercent: projectedDA };
+    }
+    const salary = calculateSalary(basic, effectiveSettings);
     results.push({ year: y, levelId: curLevel, cellIndex: curCell, basicPay: basic, salary, notes });
 
     // Check promotion
