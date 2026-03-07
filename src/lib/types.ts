@@ -17,10 +17,12 @@ export interface PromotionPath {
 
 export type PensionScheme = "NPS" | "OPS";
 export type IncrementMonth = 1 | 7;
+export type DAMode = "flat" | "projected";
 
 export interface GlobalSettings {
   incrementRate: number;
   daPercent: number;
+  daMode: DAMode;
   hraPercent: number;
   hraCityType: "X" | "Y" | "Z";
   hraEnabled: boolean;
@@ -84,7 +86,8 @@ export const HRA_RATES: Record<string, number> = {
 
 export const DEFAULT_SETTINGS: GlobalSettings = {
   incrementRate: 0.03,
-  daPercent: 0.58,
+  daPercent: 0.60,
+  daMode: "flat",
   hraPercent: 0.20,
   hraCityType: "Y",
   hraEnabled: false,

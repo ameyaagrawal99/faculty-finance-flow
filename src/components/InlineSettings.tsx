@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Settings2, ChevronDown, RotateCcw } from "lucide-react";
+import { Settings2, ChevronDown, RotateCcw, TrendingUp, Lock } from "lucide-react";
 import { useState } from "react";
 
 export function InlineSettings() {
@@ -20,7 +20,7 @@ export function InlineSettings() {
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <span>Calculation Settings</span>
           <span className="text-xs text-muted-foreground">
-            DA {(settings.daPercent * 100).toFixed(0)}%
+            DA {(settings.daPercent * 100).toFixed(0)}%{settings.daMode === "projected" ? " (proj.)" : ""}
             {settings.hraEnabled ? ` · HRA ${settings.hraOverride !== null ? (settings.hraOverride * 100).toFixed(0) : settings.hraCityType}` : " · No HRA"}
             {" "}· TA ₹{settings.taMonthly} · {settings.pensionScheme}
           </span>
@@ -31,12 +31,45 @@ export function InlineSettings() {
         <div className="px-4 pb-4 pt-1 space-y-4 border-t">
           {/* Row 1: Core rates */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SliderField
-              label="DA %"
-              value={settings.daPercent * 100}
-              onChange={(v) => updateSettings({ daPercent: v / 100 })}
-              min={0} max={100} step={1}
-            />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">DA</Label>
+                <div className="flex items-center gap-0.5 rounded border p-0.5 bg-muted/50">
+                  <button
+                    onClick={() => updateSettings({ daMode: "flat" })}
+                    title="Flat rate"
+                    className={`p-0.5 rounded transition-colors ${settings.daMode === "flat" ? "bg-background shadow" : "text-muted-foreground"}`}
+                  >
+                    <Lock className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => updateSettings({ daMode: "projected" })}
+                    title="Projected growth"
+                    className={`p-0.5 rounded transition-colors ${settings.daMode === "projected" ? "bg-background shadow text-emerald-600" : "text-muted-foreground"}`}
+                  >
+                    <TrendingUp className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+              {settings.daMode === "flat" ? (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-mono text-muted-foreground">{(settings.daPercent * 100).toFixed(0)}%</span>
+                  </div>
+                  <Slider
+                    value={[settings.daPercent * 100]}
+                    onValueChange={([v]) => updateSettings({ daPercent: v / 100 })}
+                    min={0} max={100} step={1}
+                    className="py-1"
+                  />
+                </div>
+              ) : (
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight">
+                  Uses 7th CPC schedule<br />
+                  <span className="text-muted-foreground">({(settings.daPercent * 100).toFixed(0)}% base · grows ~2–3%/revision)</span>
+                </p>
+              )}
+            </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">HRA</Label>

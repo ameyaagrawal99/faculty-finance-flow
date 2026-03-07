@@ -49,7 +49,7 @@ export default function ComparePage() {
   const projections = useMemo(() => {
     return cases.map((c) => ({
       ...c,
-      data: projectGrowth(c.levelId, c.cellIndex, years, settings, promoYear),
+      data: projectGrowth(c.levelId, c.cellIndex, years, settings, promoYear, undefined, new Date().getFullYear()),
     }));
   }, [cases, years, settings, promoYear]);
 

@@ -9,17 +9,17 @@ describe("salary engine regression safety", () => {
 
     expect(salary).toMatchObject({
       basicPay: 101500,
-      da: 58870,
+      da: 60900,
       hra: 0,
       ta: 5600,
-      grossMonthly: 165970,
-      grossAnnual: 1991640,
+      grossMonthly: 168000,
+      grossAnnual: 2016000,
       ppf: 12180,
       gratuity: 4882,
       perksAnnual: 560000,
       perksMonthly: 46667,
-      ctcMonthly: 229699,
-      ctcAnnual: 2756384,
+      ctcMonthly: 231729,
+      ctcAnnual: 2780744,
       npsEmployee: 0,
       npsEmployer: 0,
     });

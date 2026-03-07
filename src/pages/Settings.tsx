@@ -1,6 +1,7 @@
 import { useSettings } from "@/lib/settings-context";
 import { PAY_MATRIX } from "@/lib/pay-matrix-data";
 import { HRA_RATES, DEFAULT_SETTINGS } from "@/lib/types";
+import { DA_SCHEDULE, DA_8TH_CPC_NOTE } from "@/lib/da-schedule";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, TrendingUp, Lock } from "lucide-react";
 
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettings();
@@ -52,14 +53,39 @@ export default function SettingsPage() {
               step="0.1" className="h-8"
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">DA (%)</Label>
-            <Input
-              type="number"
-              value={(settings.daPercent * 100).toFixed(1)}
-              onChange={(e) => updateSettings({ daPercent: Number(e.target.value) / 100 })}
-              step="1" className="h-8"
-            />
+          <div className="space-y-1 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">DA Mode</Label>
+              <div className="flex items-center gap-1 rounded-md border p-0.5 bg-muted/50">
+                <button
+                  onClick={() => updateSettings({ daMode: "flat" })}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${settings.daMode === "flat" ? "bg-background shadow font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <Lock className="h-3 w-3" /> Flat Rate
+                </button>
+                <button
+                  onClick={() => updateSettings({ daMode: "projected" })}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${settings.daMode === "projected" ? "bg-background shadow font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <TrendingUp className="h-3 w-3" /> Projected Growth
+                </button>
+              </div>
+            </div>
+            {settings.daMode === "flat" ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={(settings.daPercent * 100).toFixed(1)}
+                  onChange={(e) => updateSettings({ daPercent: Number(e.target.value) / 100 })}
+                  step="1" className="h-8 w-28"
+                />
+                <span className="text-xs text-muted-foreground">% applied uniformly to all years</span>
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">
+                DA follows the historical 7th CPC revision schedule. Each year in projections uses the January-effective DA rate for that year.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
@@ -94,6 +120,59 @@ export default function SettingsPage() {
               onChange={(e) => updateSettings({ taMonthly: Number(e.target.value) })}
               className="h-8"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* DA Schedule */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            DA Revision History &amp; Projections
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Bi-annual revisions under the 7th Pay Commission (effective Jan &amp; Jul each year).
+            {settings.daMode === "projected" && " Projections are used in multi-year salary growth calculations."}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="text-left py-1.5 pr-4 font-medium">Effective</th>
+                  <th className="text-right py-1.5 pr-4 font-medium">DA Rate</th>
+                  <th className="text-right py-1.5 pr-4 font-medium">Change</th>
+                  <th className="text-left py-1.5 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DA_SCHEDULE.map((entry) => (
+                  <tr key={entry.effectiveFrom} className={`border-b border-border/40 ${entry.status === "projected" ? "text-muted-foreground" : ""}`}>
+                    <td className="py-1 pr-4 font-mono">{entry.label}</td>
+                    <td className="py-1 pr-4 text-right font-mono font-medium">{(entry.daPercent * 100).toFixed(0)}%</td>
+                    <td className="py-1 pr-4 text-right font-mono text-emerald-600 dark:text-emerald-400">+{(entry.change * 100).toFixed(0)}%</td>
+                    <td className="py-1">
+                      {entry.status === "confirmed" ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                          Confirmed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                          Projected
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
+            <p className="text-[10px] text-amber-800 dark:text-amber-300 leading-relaxed">
+              <strong>8th Pay Commission:</strong> {DA_8TH_CPC_NOTE}
+            </p>
           </div>
         </CardContent>
       </Card>
