@@ -51,6 +51,15 @@ const App = () => (
                 </main>
               </div>
             </div>
+            <a 
+              href="https://www.ameya.page" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="fixed bottom-4 right-4 z-[100] flex items-center gap-2 rounded-full bg-background/80 px-3 py-1.5 text-[10px] font-medium text-muted-foreground backdrop-blur-md border border-border/50 shadow-sm transition-all hover:bg-background hover:text-primary hover:border-primary/30"
+            >
+              <span className="flex h-1.5 w-1.5 rounded-full bg-primary/40 animate-pulse"></span>
+              created by Ameya
+            </a>
           </SidebarProvider>
         </BrowserRouter>
       </SettingsProvider>

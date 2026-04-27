@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { PAY_MATRIX, getLevelById } from "@/lib/pay-matrix-data";
 import { getBasicPayAtCell, calculateSalary, getEffectiveLevel } from "@/lib/salary-engine";
 import { useSettings } from "@/lib/settings-context";
@@ -13,7 +13,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ChevronDown, Copy, Download, Search, SlidersHorizontal, Table2, ArrowUp } from "lucide-react";
+import { toast } from "sonner";
 
 function fmt(v: number) {
   return "₹" + v.toLocaleString("en-IN");
@@ -35,16 +36,31 @@ function SelectionToolbar({
   selected,
   onChange,
   label,
+  search,
+  onSearchChange,
 }: {
   selected: Set<string>;
   onChange: (levels: Set<string>) => void;
   label: string;
+  search: string;
+  onSearchChange: (val: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <CardTitle className="text-sm">{label}</CardTitle>
-        <p className="mt-1 text-xs text-muted-foreground">{selected.size} of {PAY_MATRIX.length} levels selected</p>
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div>
+          <CardTitle className="text-sm">{label}</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">{selected.size} of {PAY_MATRIX.length} levels selected</p>
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Filter levels..."
+            className="pl-9 h-8 text-xs"
+          />
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => onChange(new Set(CORE_LEVELS))}>
@@ -63,8 +79,82 @@ function SelectionToolbar({
 
 export default function PayMatrixPage() {
   const { settings } = useSettings();
+
+  const downloadCSV = (data: string[][], filename: string) => {
+    const csvContent = data.map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportMatrix = () => {
+    const header = ["Cell", ...levels.map(l => `${l.levelName} (${l.designation})`)];
+    const rows = Array.from({ length: maxRows }, (_, i) => {
+      const isTruncatedRow = levels.every((l) => {
+        if (l.capType === "TRUNCATED" && l.maxCellIndex !== undefined && i > l.maxCellIndex) return true;
+        if (l.capType === "TRUNCATED" && i >= l.payCells.length) return true;
+        return false;
+      });
+      if (isTruncatedRow) return null;
+
+      const row = [String(i + 1)];
+      levels.forEach(l => {
+        const isBeyond = (l.capType === "TRUNCATED" && l.maxCellIndex !== undefined && i > l.maxCellIndex) || (l.capType === "TRUNCATED" && i >= l.payCells.length);
+        if (isBeyond) {
+          row.push("-");
+        } else {
+          row.push(String(getDisplayValue(getBasicPayAtCell(l, i))));
+        }
+      });
+      return row;
+    }).filter(Boolean) as string[][];
+
+    downloadCSV([header, ...rows], `pay-matrix-${matrixMetric}-${matrixPeriod}.csv`);
+  };
+
+  const handleExportCompensation = () => {
+    const header = ["Position", "Cell", "Basic", "DA", "HRA", "TA", "Gross", "PPF", "Gratuity", "Perks", "CTC"];
+    if (isAnnual) header.splice(2, 0, "Basic/mo");
+
+    const rows = filteredCompData.map(row => {
+      const r = [
+        `${row.levelName} (${row.designation})`,
+        String(row.cellIndex + 1),
+        String(row.basic),
+        String(row.da),
+        String(row.hra),
+        String(row.ta),
+        String(row.gross),
+        String(row.ppf),
+        String(row.gratuity),
+        String(row.perks),
+        String(row.ctc)
+      ];
+      if (isAnnual) r.splice(2, 0, String(row.monthlyBasic));
+      return r;
+    });
+
+    downloadCSV([header, ...rows], `compensation-${isAnnual ? "annual" : "monthly"}.csv`);
+  };
+
+  const handleCopyValue = (val: number, label: string) => {
+    navigator.clipboard.writeText(String(val)).then(() => {
+      toast.success(`Copied ${label} value to clipboard`);
+    }).catch(() => {
+      toast.error("Failed to copy value");
+    });
+  };
+
+  const [levelSearch, setLevelSearch] = useState("");
   const [visibleLevels, setVisibleLevels] = useState<Set<string>>(new Set(CORE_LEVELS));
   const [showOthers, setShowOthers] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
   const [matrixPeriod, setMatrixPeriod] = useState<MatrixPeriod>("monthly");
   const [matrixMetric, setMatrixMetric] = useState<MatrixMetric>("basic");
   const [isMatrixSettingsOpen, setIsMatrixSettingsOpen] = useState(false);
@@ -88,17 +178,41 @@ export default function PayMatrixPage() {
     setter(next);
   };
 
-  const levels = PAY_MATRIX.filter((l) => visibleLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings));
-  const maxRows = levels.length > 0 ? Math.max(...levels.map((l) => l.capType === "NO_CAP" ? l.payCells.length + 5 : l.payCells.length)) : 0;
+  const levels = useMemo(() => 
+    PAY_MATRIX.filter((l) => visibleLevels.has(l.id)).map((l) => getEffectiveLevel(l, settings)),
+    [visibleLevels, settings]
+  );
+  
+  const maxRows = useMemo(() => 
+    levels.length > 0 ? Math.max(...levels.map((l) => l.capType === "NO_CAP" ? l.payCells.length + 5 : l.payCells.length)) : 0,
+    [levels]
+  );
 
-  const getDisplayValue = (basicPay: number) => {
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [hoveredCol, setHoveredCol] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const getDisplayValue = useCallback((basicPay: number) => {
     const salary = calculateSalary(basicPay, settings);
     if (matrixMetric === "basic") return matrixPeriod === "annual" ? salary.basicPay * 12 : salary.basicPay;
     if (matrixMetric === "gross") return matrixPeriod === "annual" ? salary.grossMonthly * 12 : salary.grossMonthly;
     return matrixPeriod === "annual" ? salary.ctcAnnual : salary.ctcMonthly;
-  };
+  }, [settings, matrixMetric, matrixPeriod]);
 
-  const matrixMetricLabel = matrixMetric === "basic" ? "Basic" : matrixMetric === "gross" ? "Gross" : "CTC";
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) setShowScrollTop(true);
+      else setShowScrollTop(false);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+
+  const matrixMetricLabel = useMemo(() => 
+    matrixMetric === "basic" ? "Basic" : matrixMetric === "gross" ? "Gross" : "CTC",
+    [matrixMetric]
+  );
 
   const matrixSummary = useMemo(() => {
     if (levels.length === 0) return null;
@@ -117,7 +231,7 @@ export default function PayMatrixPage() {
       avgEntryPay: Math.round(entryPays.reduce((sum, pay) => sum + pay, 0) / entryPays.length),
       noCapLevels: levels.filter((level) => level.capType === "NO_CAP").length,
     };
-  }, [levels, matrixMetric, matrixPeriod, settings]);
+  }, [levels, getDisplayValue]);
 
   // Compensation table data
   const compData = useMemo(() => {
@@ -176,29 +290,53 @@ export default function PayMatrixPage() {
     };
   }, [filteredCompData]);
 
-  const LevelCheckboxes = ({ selected, onToggle, levelIds }: { selected: Set<string>; onToggle: (id: string) => void; levelIds: string[] }) => (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {levelIds.map((id) => {
+  const LevelCheckboxes = ({ 
+    selected, 
+    onToggle, 
+    levelIds, 
+    search 
+  }: { 
+    selected: Set<string>; 
+    onToggle: (id: string) => void; 
+    levelIds: string[];
+    search?: string;
+  }) => {
+    const filteredIds = useMemo(() => {
+      if (!search) return levelIds;
+      const q = search.toLowerCase();
+      return levelIds.filter(id => {
         const l = getLevelById(id);
-        if (!l) return null;
-        const isChecked = selected.has(id);
-        return (
-          <label
-            key={id}
-            className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-xs transition-colors ${
-              isChecked ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:bg-muted/50"
-            }`}
-          >
-            <Checkbox checked={isChecked} onCheckedChange={() => onToggle(id)} />
-            <span className="min-w-0">
-              <span className="block font-semibold">{l.levelName}</span>
-              <span className="block truncate text-muted-foreground">{l.designation}</span>
-            </span>
-          </label>
-        );
-      })}
-    </div>
-  );
+        if (!l) return false;
+        return l.levelName.toLowerCase().includes(q) || l.designation.toLowerCase().includes(q);
+      });
+    }, [levelIds, search]);
+
+    if (filteredIds.length === 0) return null;
+
+    return (
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {filteredIds.map((id) => {
+          const l = getLevelById(id);
+          if (!l) return null;
+          const isChecked = selected.has(id);
+          return (
+            <label
+              key={id}
+              className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-xs transition-colors ${
+                isChecked ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:bg-muted/50"
+              }`}
+            >
+              <Checkbox checked={isChecked} onCheckedChange={() => onToggle(id)} />
+              <span className="min-w-0">
+                <span className="block font-semibold">{l.levelName}</span>
+                <span className="block truncate text-muted-foreground">{l.designation}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -223,17 +361,33 @@ export default function PayMatrixPage() {
         <TabsContent value="matrix" className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <SelectionToolbar selected={visibleLevels} onChange={setVisibleLevels} label="Visible Levels" />
+              <SelectionToolbar 
+                selected={visibleLevels} 
+                onChange={setVisibleLevels} 
+                label="Visible Levels" 
+                search={levelSearch}
+                onSearchChange={setLevelSearch}
+              />
             </CardHeader>
             <CardContent className="space-y-3">
-              <LevelCheckboxes selected={visibleLevels} onToggle={(id) => toggleLevel(id, visibleLevels, setVisibleLevels)} levelIds={CORE_LEVELS} />
-              <Collapsible open={showOthers} onOpenChange={setShowOthers}>
+              <LevelCheckboxes 
+                selected={visibleLevels} 
+                onToggle={(id) => toggleLevel(id, visibleLevels, setVisibleLevels)} 
+                levelIds={CORE_LEVELS} 
+                search={levelSearch}
+              />
+              <Collapsible open={showOthers || !!levelSearch} onOpenChange={setShowOthers}>
                 <CollapsibleTrigger className="flex items-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground">
-                  <ChevronDown className={`h-3 w-3 transition-transform ${showOthers ? "rotate-180" : ""}`} />
-                  {showOthers ? "Hide" : "Show"} other levels
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showOthers || !!levelSearch ? "rotate-180" : ""}`} />
+                  {showOthers || !!levelSearch ? "Hide" : "Show"} other levels
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2">
-                  <LevelCheckboxes selected={visibleLevels} onToggle={(id) => toggleLevel(id, visibleLevels, setVisibleLevels)} levelIds={OTHER_LEVELS} />
+                  <LevelCheckboxes 
+                    selected={visibleLevels} 
+                    onToggle={(id) => toggleLevel(id, visibleLevels, setVisibleLevels)} 
+                    levelIds={OTHER_LEVELS} 
+                    search={levelSearch}
+                  />
                 </CollapsibleContent>
               </Collapsible>
             </CardContent>
@@ -275,7 +429,15 @@ export default function PayMatrixPage() {
                   <Table2 className="h-4 w-4 text-primary" />
                   Pay Matrix
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-2 mr-2">
+                    <Label htmlFor="matrix-compact" className="text-[10px] uppercase tracking-wider text-muted-foreground">Compact</Label>
+                    <Switch id="matrix-compact" checked={isCompact} onCheckedChange={setIsCompact} className="scale-75" />
+                  </div>
+                  <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleExportMatrix} disabled={levels.length === 0}>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </Button>
                   <Badge variant="outline" className="w-fit font-normal text-xs">
                     {matrixMetricLabel} • {matrixPeriod === "annual" ? "₹/year" : "₹/month"}
                   </Badge>
@@ -318,14 +480,19 @@ export default function PayMatrixPage() {
                 <p className="text-sm text-muted-foreground py-8 text-center">Select at least one level above to view the matrix.</p>
               ) : (
                 <div className="max-h-[72vh] overflow-auto rounded-md border">
-                <Table>
+                <Table className={isCompact ? "text-[10px]" : ""}>
                   <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
                     <TableRow>
-                      <TableHead className="sticky left-0 z-30 w-16 bg-card shadow-[1px_0_0_hsl(var(--border))]">Cell</TableHead>
+                      <TableHead className={`sticky left-0 z-30 w-16 bg-card shadow-[1px_0_0_hsl(var(--border))] ${isCompact ? "h-8 px-2" : ""}`}>Cell</TableHead>
                       {levels.map((l) => (
-                        <TableHead key={l.id} className="min-w-[140px] text-center">
-                          <div className="text-xs font-semibold">{l.levelName}</div>
-                          <div className="text-[10px] text-muted-foreground">{l.designation}</div>
+                        <TableHead 
+                          key={l.id} 
+                          className={`min-w-[140px] text-center transition-colors ${hoveredCol === l.id ? "bg-muted/50" : ""} ${isCompact ? "h-8 px-2" : ""}`}
+                          onMouseEnter={() => setHoveredCol(l.id)}
+                          onMouseLeave={() => setHoveredCol(null)}
+                        >
+                          <div className={`${isCompact ? "text-[10px]" : "text-xs"} font-semibold`}>{l.levelName}</div>
+                          <div className={`${isCompact ? "text-[8px]" : "text-[10px]"} text-muted-foreground`}>{l.designation}</div>
                           <Badge variant={l.capType === "NO_CAP" ? "default" : "secondary"} className="text-[10px] mt-1">
                             {l.capType === "NO_CAP" ? "No Cap" : "Truncated"}
                           </Badge>
@@ -333,9 +500,14 @@ export default function PayMatrixPage() {
                       ))}
                     </TableRow>
                     <TableRow>
-                      <TableHead className="sticky left-0 z-30 bg-card text-xs shadow-[1px_0_0_hsl(var(--border))]">Entry</TableHead>
+                      <TableHead className={`sticky left-0 z-30 bg-card shadow-[1px_0_0_hsl(var(--border))] ${isCompact ? "h-8 px-2 text-[10px]" : "text-xs"}`}>Entry</TableHead>
                       {levels.map((l) => (
-                        <TableHead key={l.id} className="text-center text-xs font-bold text-primary">
+                        <TableHead 
+                          key={l.id} 
+                          className={`text-center font-bold text-primary transition-colors ${hoveredCol === l.id ? "bg-muted/50" : ""} ${isCompact ? "h-8 px-2 text-[10px]" : "text-xs"}`}
+                          onMouseEnter={() => setHoveredCol(l.id)}
+                          onMouseLeave={() => setHoveredCol(null)}
+                        >
                           {fmt(getDisplayValue(l.revisedEntryPay))}
                         </TableHead>
                       ))}
@@ -351,15 +523,20 @@ export default function PayMatrixPage() {
                       if (isTruncatedRow) return null;
 
                       return (
-                        <TableRow key={i} className="hover:bg-muted/40">
-                          <TableCell className="sticky left-0 z-10 bg-card font-medium text-xs shadow-[1px_0_0_hsl(var(--border))]">{i + 1}</TableCell>
+                        <TableRow 
+                          key={i} 
+                          className={`group/row transition-colors ${hoveredRow === i ? "bg-muted/40" : "hover:bg-muted/40"}`}
+                          onMouseEnter={() => setHoveredRow(i)}
+                          onMouseLeave={() => setHoveredRow(null)}
+                        >
+                          <TableCell className={`sticky left-0 z-10 bg-card font-medium shadow-[1px_0_0_hsl(var(--border))] transition-colors ${hoveredRow === i ? "bg-muted/40" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{i + 1}</TableCell>
                           {levels.map((l) => {
                             const isBeyond =
                               (l.capType === "TRUNCATED" && l.maxCellIndex !== undefined && i > l.maxCellIndex) ||
                               (l.capType === "TRUNCATED" && i >= l.payCells.length);
 
                             if (isBeyond) {
-                              return <TableCell key={l.id} className="text-center text-xs text-muted-foreground">—</TableCell>;
+                              return <TableCell key={l.id} className={`text-center text-muted-foreground ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>—</TableCell>;
                             }
 
                             const isNoCap = l.capType === "NO_CAP" && i >= l.payCells.length;
@@ -370,24 +547,36 @@ export default function PayMatrixPage() {
                             return (
                               <TableCell
                                 key={l.id}
-                                className={`text-center text-xs ${isEntry ? "bg-primary/5 font-bold text-primary" : ""} ${isNoCap ? "italic text-muted-foreground" : ""}`}
+                                className={`group relative text-center transition-colors ${hoveredCol === l.id ? "bg-primary/[0.03]" : ""} ${isEntry ? "bg-primary/5 font-bold text-primary" : ""} ${isNoCap ? "italic text-muted-foreground" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}
+                                onMouseEnter={() => setHoveredCol(l.id)}
+                                onMouseLeave={() => setHoveredCol(null)}
                               >
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                  onClick={() =>
-                                    setSelectedCell({
-                                      levelId: l.id,
-                                      levelName: l.levelName,
-                                      designation: l.designation,
-                                      cellIndex: i,
-                                      basicPay: pay,
-                                    })
-                                  }
-                                  title="Open salary bifurcation"
-                                >
-                                  {fmt(displayValue)}
-                                </button>
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() =>
+                                      setSelectedCell({
+                                        levelId: l.id,
+                                        levelName: l.levelName,
+                                        designation: l.designation,
+                                        cellIndex: i,
+                                        basicPay: pay,
+                                      })
+                                    }
+                                    title="Open salary bifurcation"
+                                  >
+                                    {fmt(displayValue)}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-primary/10 rounded text-primary"
+                                    onClick={() => handleCopyValue(displayValue, matrixMetricLabel)}
+                                    title={`Copy ${matrixMetricLabel} value`}
+                                  >
+                                    <Copy className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
                                 {isNoCap && (
                                   <>
                                     {" "}
@@ -412,23 +601,49 @@ export default function PayMatrixPage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <SelectionToolbar selected={compLevels} onChange={setCompLevels} label="Select Positions" />
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="comp-annual" className="text-xs text-muted-foreground">Monthly</Label>
-                  <Switch id="comp-annual" checked={isAnnual} onCheckedChange={setIsAnnual} />
-                  <Label htmlFor="comp-annual" className="text-xs text-muted-foreground">Annual</Label>
+                <SelectionToolbar 
+                  selected={compLevels} 
+                  onChange={setCompLevels} 
+                  label="Select Positions" 
+                  search={levelSearch}
+                  onSearchChange={setLevelSearch}
+                />
+                <div className="flex items-center gap-4">
+                  <div className="hidden sm:flex items-center gap-2">
+                    <Label htmlFor="comp-compact" className="text-[10px] uppercase tracking-wider text-muted-foreground">Compact</Label>
+                    <Switch id="comp-compact" checked={isCompact} onCheckedChange={setIsCompact} className="scale-75" />
+                  </div>
+                  <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleExportCompensation} disabled={filteredCompData.length === 0}>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="comp-annual" className="text-xs text-muted-foreground">Monthly</Label>
+                    <Switch id="comp-annual" checked={isAnnual} onCheckedChange={setIsAnnual} />
+                    <Label htmlFor="comp-annual" className="text-xs text-muted-foreground">Annual</Label>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <LevelCheckboxes selected={compLevels} onToggle={(id) => toggleLevel(id, compLevels, setCompLevels)} levelIds={CORE_LEVELS} />
-              <Collapsible open={showCompOthers} onOpenChange={setShowCompOthers}>
+              <LevelCheckboxes 
+                selected={compLevels} 
+                onToggle={(id) => toggleLevel(id, compLevels, setCompLevels)} 
+                levelIds={CORE_LEVELS} 
+                search={levelSearch}
+              />
+              <Collapsible open={showCompOthers || !!levelSearch} onOpenChange={setShowCompOthers}>
                 <CollapsibleTrigger className="flex items-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground">
-                  <ChevronDown className={`h-3 w-3 transition-transform ${showCompOthers ? "rotate-180" : ""}`} />
-                  {showCompOthers ? "Hide" : "Show"} other levels
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showCompOthers || !!levelSearch ? "rotate-180" : ""}`} />
+                  {showCompOthers || !!levelSearch ? "Hide" : "Show"} other levels
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2">
-                  <LevelCheckboxes selected={compLevels} onToggle={(id) => toggleLevel(id, compLevels, setCompLevels)} levelIds={OTHER_LEVELS} />
+                  <LevelCheckboxes 
+                    selected={compLevels} 
+                    onToggle={(id) => toggleLevel(id, compLevels, setCompLevels)} 
+                    levelIds={OTHER_LEVELS} 
+                    search={levelSearch}
+                  />
                 </CollapsibleContent>
               </Collapsible>
             </CardContent>
@@ -470,21 +685,21 @@ export default function PayMatrixPage() {
                 </p>
               ) : (
                 <div className="max-h-[72vh] overflow-auto rounded-md border">
-                <Table>
+                <Table className={isCompact ? "text-[10px]" : ""}>
                   <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
                     <TableRow>
-                      <TableHead className="sticky left-0 z-30 min-w-[170px] bg-card shadow-[1px_0_0_hsl(var(--border))]">Position</TableHead>
-                      <TableHead className="text-center">Cell</TableHead>
-                      {isAnnual && <TableHead className="text-right">Basic/mo</TableHead>}
-                      <TableHead className="text-right">Basic</TableHead>
-                      <TableHead className="text-right">DA</TableHead>
-                      <TableHead className="text-right">HRA</TableHead>
-                      <TableHead className="text-right">TA</TableHead>
-                      <TableHead className="text-right font-semibold">Gross</TableHead>
-                      <TableHead className="text-right">PPF</TableHead>
-                      <TableHead className="text-right">Gratuity</TableHead>
-                      <TableHead className="text-right">Perks</TableHead>
-                      <TableHead className="text-right font-semibold">CTC</TableHead>
+                      <TableHead className={`sticky left-0 z-30 min-w-[170px] bg-card shadow-[1px_0_0_hsl(var(--border))] ${isCompact ? "h-8 px-2" : ""}`}>Position</TableHead>
+                      <TableHead className={`text-center ${isCompact ? "h-8 px-2" : ""}`}>Cell</TableHead>
+                      {isAnnual && <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic/mo</TableHead>}
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>DA</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>HRA</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>TA</TableHead>
+                      <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>Gross</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>PPF</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Gratuity</TableHead>
+                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Perks</TableHead>
+                      <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>CTC</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -493,25 +708,88 @@ export default function PayMatrixPage() {
                       const isEntry = row.cellIndex === getEntryCellIndex(row.levelId);
                       return (
                         <TableRow key={`${row.levelId}-${row.cellIndex}`} className={`${isFirstOfLevel ? "border-t-2 border-primary/20" : ""} hover:bg-muted/40`}>
-                          <TableCell className="sticky left-0 z-10 bg-card text-xs shadow-[1px_0_0_hsl(var(--border))]">
+                          <TableCell className={`sticky left-0 z-10 bg-card shadow-[1px_0_0_hsl(var(--border))] ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
                             {isFirstOfLevel && (
                               <div>
                                 <div className="font-semibold">{row.levelName}</div>
-                                <div className="text-muted-foreground text-[10px]">{row.designation}</div>
+                                <div className={`${isCompact ? "text-[8px]" : "text-[10px]"} text-muted-foreground`}>{row.designation}</div>
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className={`text-center text-xs ${isEntry ? "font-bold text-primary" : ""}`}>{row.cellIndex + 1}{isEntry ? " ★" : ""}</TableCell>
-                          {isAnnual && <TableCell className="text-right text-xs text-muted-foreground">{fmt(row.monthlyBasic)}</TableCell>}
-                          <TableCell className="text-right text-xs">{fmt(row.basic)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.da)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.hra)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.ta)}</TableCell>
-                          <TableCell className="text-right text-xs font-semibold">{fmt(row.gross)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.ppf)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.gratuity)}</TableCell>
-                          <TableCell className="text-right text-xs">{fmt(row.perks)}</TableCell>
-                          <TableCell className="text-right text-xs font-semibold text-primary">{fmt(row.ctc)}</TableCell>
+                          <TableCell className={`text-center ${isEntry ? "font-bold text-primary" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{row.cellIndex + 1}{isEntry ? " ★" : ""}</TableCell>
+                          {isAnnual && <TableCell className={`text-right text-muted-foreground ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(row.monthlyBasic)}</TableCell>}
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.basic)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.basic, "Basic")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.da)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.da, "DA")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.hra)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.hra, "HRA")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.ta)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ta, "TA")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right font-semibold ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.gross)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.gross, "Gross")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.ppf)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ppf, "PPF")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.gratuity)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.gratuity, "Gratuity")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.perks)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.perks, "Perks")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`group text-right font-semibold text-primary ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>{fmt(row.ctc)}</span>
+                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ctc, "CTC")}>
+                                <Copy className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -571,9 +849,14 @@ export default function PayMatrixPage() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {monthlyRows.map((row) => (
-                        <div key={`m-${row.label}`} className="flex items-center justify-between text-sm">
+                        <div key={`m-${row.label}`} className="flex items-center justify-between text-sm group">
                           <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{row.label}</span>
-                          <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold" : ""}`}>{fmt(row.value)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold" : ""}`}>{fmt(row.value)}</span>
+                            <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.value, row.label)}>
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </CardContent>
@@ -584,9 +867,14 @@ export default function PayMatrixPage() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {annualRows.map((row) => (
-                        <div key={`a-${row.label}`} className="flex items-center justify-between text-sm">
+                        <div key={`a-${row.label}`} className="flex items-center justify-between text-sm group">
                           <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{row.label}</span>
-                          <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold" : ""}`}>{fmt(row.value)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`${row.label === "Gross" || row.label === "CTC" ? "font-semibold" : ""}`}>{fmt(row.value)}</span>
+                            <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.value, row.label)}>
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </CardContent>
@@ -597,6 +885,16 @@ export default function PayMatrixPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {showScrollTop && (
+        <Button
+          className="fixed bottom-6 right-6 rounded-full p-3 shadow-lg z-50 transition-all"
+          size="icon"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }
