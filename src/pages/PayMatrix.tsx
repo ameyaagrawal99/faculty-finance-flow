@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { PAY_MATRIX, getLevelById } from "@/lib/pay-matrix-data";
 import { getBasicPayAtCell, calculateSalary, getEffectiveLevel } from "@/lib/salary-engine";
 import { useSettings } from "@/lib/settings-context";
+import { backCalculateWpuGoaBands, getWpuGoaCtcAnnual, getWpuGoaInclusiveAnnual } from "@/lib/wpu-goa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, Copy, Download, Search, SlidersHorizontal, Table2, ArrowUp } from "lucide-react";
+import { ArrowUp, ChevronDown, Columns3, Copy, Download, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
 function fmt(v: number) {
@@ -22,10 +23,24 @@ function fmt(v: number) {
 
 type MatrixMetric = "basic" | "gross" | "ctc";
 type MatrixPeriod = "monthly" | "annual";
+type CompensationColumnKey = "monthlyBasic" | "basic" | "da" | "hra" | "ta" | "gross" | "ppf" | "gratuity" | "perks" | "ctc";
 
 const CORE_LEVELS = ["L12", "L13A1", "L13A2", "L14A"];
 const OTHER_LEVELS = PAY_MATRIX.filter((l) => !CORE_LEVELS.includes(l.id)).map((l) => l.id);
 const ALL_LEVELS = PAY_MATRIX.map((l) => l.id);
+const COMPENSATION_COLUMNS: Array<{ key: CompensationColumnKey; label: string; emphasis?: boolean; annualOnly?: boolean }> = [
+  { key: "monthlyBasic", label: "Basic/mo", annualOnly: true },
+  { key: "basic", label: "Basic" },
+  { key: "da", label: "DA" },
+  { key: "hra", label: "HRA" },
+  { key: "ta", label: "TA" },
+  { key: "gross", label: "Gross", emphasis: true },
+  { key: "ppf", label: "PPF" },
+  { key: "gratuity", label: "Gratuity" },
+  { key: "perks", label: "Perks" },
+  { key: "ctc", label: "CTC", emphasis: true },
+];
+const DEFAULT_COMPENSATION_COLUMNS = new Set<CompensationColumnKey>(["basic", "gross", "ctc"]);
 
 function getEntryCellIndex(levelId: string) {
   const level = getLevelById(levelId);
@@ -119,28 +134,36 @@ export default function PayMatrixPage() {
   };
 
   const handleExportCompensation = () => {
-    const header = ["Position", "Cell", "Basic", "DA", "HRA", "TA", "Gross", "PPF", "Gratuity", "Perks", "CTC"];
-    if (isAnnual) header.splice(2, 0, "Basic/mo");
+    const exportColumns = visibleCompColumns.filter((column) => !column.annualOnly || isAnnual);
+    const header = ["Position", "Cell", ...exportColumns.map((column) => column.label)];
 
     const rows = filteredCompData.map(row => {
       const r = [
         `${row.levelName} (${row.designation})`,
         String(row.cellIndex + 1),
-        String(row.basic),
-        String(row.da),
-        String(row.hra),
-        String(row.ta),
-        String(row.gross),
-        String(row.ppf),
-        String(row.gratuity),
-        String(row.perks),
-        String(row.ctc)
       ];
-      if (isAnnual) r.splice(2, 0, String(row.monthlyBasic));
+      exportColumns.forEach((column) => r.push(String(row[column.key])));
       return r;
     });
 
     downloadCSV([header, ...rows], `compensation-${isAnnual ? "annual" : "monthly"}.csv`);
+  };
+
+  const handleExportWpuGoa = () => {
+    const rows = wpuGoaBands.map((band) => [
+      band.title,
+      `${band.salaryRangeLpa[0]}-${band.salaryRangeLpa[1]} LPA`,
+      String(band.minBasicPay),
+      String(band.maxBasicPay),
+      String(band.startInclusiveAnnual),
+      String(band.startCtcAnnual),
+      band.payCells.join(" | "),
+    ]);
+
+    downloadCSV([
+      ["Position", "Salary Band", "Start Basic", "Max Basic", "Start Inclusive Salary", "Start CTC", "Pay Cells"],
+      ...rows,
+    ], "wpu-goa-back-calculated-ranges.csv");
   };
 
   const handleCopyValue = (val: number, label: string) => {
@@ -167,8 +190,10 @@ export default function PayMatrixPage() {
   } | null>(null);
   const [isAnnual, setIsAnnual] = useState(false);
   const [compLevels, setCompLevels] = useState<Set<string>>(new Set(CORE_LEVELS));
+  const [compColumns, setCompColumns] = useState<Set<CompensationColumnKey>>(new Set(DEFAULT_COMPENSATION_COLUMNS));
   const [showCompOthers, setShowCompOthers] = useState(false);
   const [compSearch, setCompSearch] = useState("");
+  const [wpuSearch, setWpuSearch] = useState("");
 
   const mult = isAnnual ? 12 : 1;
 
@@ -290,6 +315,32 @@ export default function PayMatrixPage() {
     };
   }, [filteredCompData]);
 
+  const visibleCompColumns = useMemo(
+    () => COMPENSATION_COLUMNS.filter((column) => compColumns.has(column.key)),
+    [compColumns],
+  );
+
+  const toggleCompColumn = (key: CompensationColumnKey) => {
+    setCompColumns((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        if (next.size === 1) return next;
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const wpuGoaBands = useMemo(() => backCalculateWpuGoaBands(settings), [settings]);
+
+  const filteredWpuGoaBands = useMemo(() => {
+    const query = wpuSearch.trim().toLowerCase();
+    if (!query) return wpuGoaBands;
+    return wpuGoaBands.filter((band) => band.title.toLowerCase().includes(query));
+  }, [wpuGoaBands, wpuSearch]);
+
   const LevelCheckboxes = ({ 
     selected, 
     onToggle, 
@@ -353,9 +404,10 @@ export default function PayMatrixPage() {
       </div>
 
       <Tabs defaultValue="matrix">
-        <TabsList className="grid w-full grid-cols-2 sm:w-auto">
+        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
           <TabsTrigger value="matrix">Pay Matrix</TabsTrigger>
           <TabsTrigger value="compensation">Compensation Table</TabsTrigger>
+          <TabsTrigger value="wpu-goa">WPU Goa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="matrix" className="space-y-4">
@@ -617,6 +669,34 @@ export default function PayMatrixPage() {
                     <Download className="h-3.5 w-3.5" />
                     Export CSV
                   </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" className="gap-2">
+                        <Columns3 className="h-3.5 w-3.5" />
+                        Columns
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle>Compensation Columns</DialogTitle>
+                        <DialogDescription>Choose the salary components shown in the table and CSV export.</DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-2">
+                        {COMPENSATION_COLUMNS.map((column) => (
+                          <label
+                            key={column.key}
+                            className="flex cursor-pointer items-center justify-between rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+                          >
+                            <span>
+                              {column.label}
+                              {column.annualOnly && <span className="ml-2 text-xs text-muted-foreground">annual view</span>}
+                            </span>
+                            <Checkbox checked={compColumns.has(column.key)} onCheckedChange={() => toggleCompColumn(column.key)} />
+                          </label>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="comp-annual" className="text-xs text-muted-foreground">Monthly</Label>
                     <Switch id="comp-annual" checked={isAnnual} onCheckedChange={setIsAnnual} />
@@ -690,16 +770,13 @@ export default function PayMatrixPage() {
                     <TableRow>
                       <TableHead className={`sticky left-0 z-30 min-w-[170px] bg-card shadow-[1px_0_0_hsl(var(--border))] ${isCompact ? "h-8 px-2" : ""}`}>Position</TableHead>
                       <TableHead className={`text-center ${isCompact ? "h-8 px-2" : ""}`}>Cell</TableHead>
-                      {isAnnual && <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic/mo</TableHead>}
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>DA</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>HRA</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>TA</TableHead>
-                      <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>Gross</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>PPF</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Gratuity</TableHead>
-                      <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Perks</TableHead>
-                      <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>CTC</TableHead>
+                      {visibleCompColumns
+                        .filter((column) => !column.annualOnly || isAnnual)
+                        .map((column) => (
+                          <TableHead key={column.key} className={`text-right ${column.emphasis ? "font-semibold" : ""} ${isCompact ? "h-8 px-2" : ""}`}>
+                            {column.label}
+                          </TableHead>
+                        ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -717,84 +794,159 @@ export default function PayMatrixPage() {
                             )}
                           </TableCell>
                           <TableCell className={`text-center ${isEntry ? "font-bold text-primary" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{row.cellIndex + 1}{isEntry ? " ★" : ""}</TableCell>
-                          {isAnnual && <TableCell className={`text-right text-muted-foreground ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(row.monthlyBasic)}</TableCell>}
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.basic)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.basic, "Basic")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.da)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.da, "DA")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.hra)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.hra, "HRA")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.ta)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ta, "TA")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right font-semibold ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.gross)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.gross, "Gross")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.ppf)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ppf, "PPF")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.gratuity)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.gratuity, "Gratuity")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.perks)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.perks, "Perks")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
-                          <TableCell className={`group text-right font-semibold text-primary ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>{fmt(row.ctc)}</span>
-                              <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(row.ctc, "CTC")}>
-                                <Copy className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          </TableCell>
+                          {visibleCompColumns
+                            .filter((column) => !column.annualOnly || isAnnual)
+                            .map((column) => {
+                              const value = row[column.key];
+                              return (
+                                <TableCell key={column.key} className={`group text-right ${column.emphasis ? "font-semibold text-primary" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>{fmt(value)}</span>
+                                    <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-primary/10 rounded text-primary" onClick={() => handleCopyValue(value, column.label)}>
+                                      <Copy className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                </TableCell>
+                              );
+                            })}
                         </TableRow>
                       );
                     })}
                   </TableBody>
                 </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="wpu-goa" className="space-y-4">
+          <Card>
+            <CardHeader className="space-y-4 pb-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle className="text-base">WPU Goa Salary Back-Calculator</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Bands are annual inclusive salary targets. Perks are added after this to calculate CTC.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-2">
+                    <Label htmlFor="wpu-compact" className="text-[10px] uppercase tracking-wider text-muted-foreground">Compact</Label>
+                    <Switch id="wpu-compact" checked={isCompact} onCheckedChange={setIsCompact} className="scale-75" />
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={handleExportWpuGoa} disabled={filteredWpuGoaBands.length === 0}>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={wpuSearch}
+                    onChange={(event) => setWpuSearch(event.target.value)}
+                    placeholder="Search WPU Goa position"
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="font-normal">{filteredWpuGoaBands.length} positions</Badge>
+                  <Badge variant="secondary" className="font-normal">DA {(settings.daPercent * 100).toFixed(0)}%</Badge>
+                  <Badge variant="secondary" className="font-normal">HRA {settings.hraEnabled ? `${(settings.hraPercent * 100).toFixed(0)}%` : "off"}</Badge>
+                  <Badge variant="secondary" className="font-normal">Perks {fmt(settings.housingSupport + settings.cpda + settings.healthInsurance)}</Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {filteredWpuGoaBands.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No WPU Goa positions match your search.</p>
+              ) : (
+                <div className="grid gap-4">
+                  {filteredWpuGoaBands.map((band) => (
+                    <Card key={band.id} className="overflow-hidden border-border/80">
+                      <CardHeader className="bg-muted/30 pb-3">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <div>
+                            <CardTitle className="text-base">{band.title}</CardTitle>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Badge variant="outline" className="font-normal">Band {band.salaryRangeLpa[0]}-{band.salaryRangeLpa[1]} LPA</Badge>
+                              <Badge variant="secondary" className="font-normal">Start basic {fmt(band.minBasicPay)}</Badge>
+                              <Badge variant="secondary" className="font-normal">Max basic {fmt(band.maxBasicPay)}</Badge>
+                            </div>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px]">
+                            <div className="rounded-md border bg-card px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Start inclusive salary</p>
+                              <p className="text-lg font-semibold">{fmt(band.startInclusiveAnnual)}</p>
+                            </div>
+                            <div className="rounded-md border bg-card px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Start CTC with perks</p>
+                              <p className="text-lg font-semibold text-primary">{fmt(band.startCtcAnnual)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-auto">
+                          <Table className={isCompact ? "text-[10px]" : ""}>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className={isCompact ? "h-8 px-2" : ""}>Cell</TableHead>
+                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic</TableHead>
+                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Inclusive Salary</TableHead>
+                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Perks</TableHead>
+                                <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>CTC</TableHead>
+                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {band.payCells.map((basicPay, index) => {
+                                const inclusiveAnnual = getWpuGoaInclusiveAnnual(basicPay, settings);
+                                const ctcAnnual = getWpuGoaCtcAnnual(basicPay, settings);
+                                return (
+                                  <TableRow key={`${band.id}-${basicPay}`} className="hover:bg-muted/40">
+                                    <TableCell className={`${index === 0 ? "font-bold text-primary" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                                      {index + 1}{index === 0 ? " ★" : ""}
+                                    </TableCell>
+                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(basicPay)}</TableCell>
+                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(inclusiveAnnual)}</TableCell>
+                                    <TableCell className={`text-right text-muted-foreground ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(settings.housingSupport + settings.cpda + settings.healthInsurance)}</TableCell>
+                                    <TableCell className={`text-right font-semibold text-primary ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(ctcAnnual)}</TableCell>
+                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
+                                      <div className="flex justify-end gap-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2"
+                                          onClick={() =>
+                                            setSelectedCell({
+                                              levelId: band.id,
+                                              levelName: band.title,
+                                              designation: "WPU Goa",
+                                              cellIndex: index,
+                                              basicPay,
+                                            })
+                                          }
+                                        >
+                                          Bifurcate
+                                        </Button>
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopyValue(ctcAnnual, `${band.title} CTC`)}>
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </CardContent>

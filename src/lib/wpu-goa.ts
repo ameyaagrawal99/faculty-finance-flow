@@ -1,0 +1,109 @@
+import { calculateSalary, roundUpTo100 } from "./salary-engine";
+import { GlobalSettings } from "./types";
+
+export interface WpuGoaBandInput {
+  id: string;
+  title: string;
+  salaryRangeLpa: [number, number];
+}
+
+export interface WpuGoaCalculatedBand extends WpuGoaBandInput {
+  minAnnualSalary: number;
+  maxAnnualSalary: number;
+  minBasicPay: number;
+  maxBasicPay: number;
+  payCells: number[];
+  startInclusiveAnnual: number;
+  startCtcAnnual: number;
+}
+
+export const WPU_GOA_BANDS: WpuGoaBandInput[] = [
+  { id: "assistant-professor-1", title: "Assistant Professor I", salaryRangeLpa: [15, 20] },
+  { id: "assistant-professor-2", title: "Assistant Professor II", salaryRangeLpa: [18, 22] },
+  { id: "assistant-professor-3", title: "Assistant Professor III", salaryRangeLpa: [20, 28] },
+  { id: "associate-professor", title: "Associate Professor", salaryRangeLpa: [24, 38] },
+  { id: "professor", title: "Professor", salaryRangeLpa: [34, 65] },
+];
+
+export function getWpuGoaInclusiveAnnual(basicPay: number, settings: GlobalSettings): number {
+  const salary = calculateSalary(basicPay, settings);
+  return salary.grossAnnual + (salary.ppf + salary.gratuity + salary.npsEmployer) * 12;
+}
+
+export function getWpuGoaCtcAnnual(basicPay: number, settings: GlobalSettings): number {
+  const salary = calculateSalary(basicPay, settings);
+  return getWpuGoaInclusiveAnnual(basicPay, settings) + salary.perksAnnual;
+}
+
+function findFirstBasicAtOrAbove(targetAnnual: number, settings: GlobalSettings): number {
+  let low = 0;
+  let high = 500000;
+
+  while (getWpuGoaInclusiveAnnual(high, settings) < targetAnnual) {
+    high *= 2;
+  }
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (getWpuGoaInclusiveAnnual(mid, settings) >= targetAnnual) {
+      high = mid;
+    } else {
+      low = mid + 1;
+    }
+  }
+
+  return roundUpTo100(low);
+}
+
+function findLastBasicAtOrBelow(targetAnnual: number, settings: GlobalSettings): number {
+  let low = 0;
+  let high = 500000;
+
+  while (getWpuGoaInclusiveAnnual(high, settings) <= targetAnnual) {
+    high *= 2;
+  }
+
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (getWpuGoaInclusiveAnnual(mid, settings) <= targetAnnual) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return Math.floor(low / 100) * 100;
+}
+
+function generateWpuGoaPayCells(minBasicPay: number, maxBasicPay: number): number[] {
+  const cells = [minBasicPay];
+  while (cells.length < 80) {
+    const next = roundUpTo100(cells[cells.length - 1] * 1.03);
+    if (next > maxBasicPay) break;
+    cells.push(next);
+  }
+  return cells;
+}
+
+export function backCalculateWpuGoaBands(
+  settings: GlobalSettings,
+  bands: WpuGoaBandInput[] = WPU_GOA_BANDS,
+): WpuGoaCalculatedBand[] {
+  return bands.map((band) => {
+    const minAnnualSalary = band.salaryRangeLpa[0] * 100000;
+    const maxAnnualSalary = band.salaryRangeLpa[1] * 100000;
+    const minBasicPay = findFirstBasicAtOrAbove(minAnnualSalary, settings);
+    const maxBasicPay = findLastBasicAtOrBelow(maxAnnualSalary, settings);
+
+    return {
+      ...band,
+      minAnnualSalary,
+      maxAnnualSalary,
+      minBasicPay,
+      maxBasicPay,
+      payCells: generateWpuGoaPayCells(minBasicPay, maxBasicPay),
+      startInclusiveAnnual: getWpuGoaInclusiveAnnual(minBasicPay, settings),
+      startCtcAnnual: getWpuGoaCtcAnnual(minBasicPay, settings),
+    };
+  });
+}
