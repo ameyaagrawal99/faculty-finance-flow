@@ -10,6 +10,7 @@ describe("WPU Goa salary back-calculation", () => {
     expect(assistantOne).toMatchObject({
       title: "Assistant Professor I",
       salaryRangeLpa: [15, 20],
+      criteria: expect.stringContaining("Entry faculty"),
       minBasicPay: 67600,
       maxBasicPay: 91000,
     });

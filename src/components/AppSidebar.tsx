@@ -1,4 +1,4 @@
-import { Calculator, BarChart3, Table2, Settings, IndianRupee, Receipt } from "lucide-react";
+import { Calculator, BarChart3, Table2, Settings, IndianRupee, Receipt, Building2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -20,6 +20,10 @@ const navItems = [
   { title: "Pay Matrix", url: "/pay-matrix", icon: Table2 },
   { title: "Arrears", url: "/arrears", icon: Receipt },
   { title: "Settings", url: "/settings", icon: Settings },
+];
+
+const entityItems = [
+  { title: "WPU Goa", url: "/wpu-goa", icon: Building2 },
 ];
 
 export function AppSidebar() {
@@ -52,6 +56,27 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
+                      className="rounded-lg transition-all hover:bg-sidebar-accent/60"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium shadow-sm"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[11px] uppercase tracking-[0.16em]">Entities</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {entityItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
                       className="rounded-lg transition-all hover:bg-sidebar-accent/60"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium shadow-sm"
                     >

@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { PAY_MATRIX, getLevelById } from "@/lib/pay-matrix-data";
 import { getBasicPayAtCell, calculateSalary, getEffectiveLevel } from "@/lib/salary-engine";
 import { useSettings } from "@/lib/settings-context";
-import { backCalculateWpuGoaBands, getWpuGoaCtcAnnual, getWpuGoaInclusiveAnnual } from "@/lib/wpu-goa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -149,23 +148,6 @@ export default function PayMatrixPage() {
     downloadCSV([header, ...rows], `compensation-${isAnnual ? "annual" : "monthly"}.csv`);
   };
 
-  const handleExportWpuGoa = () => {
-    const rows = wpuGoaBands.map((band) => [
-      band.title,
-      `${band.salaryRangeLpa[0]}-${band.salaryRangeLpa[1]} LPA`,
-      String(band.minBasicPay),
-      String(band.maxBasicPay),
-      String(band.startInclusiveAnnual),
-      String(band.startCtcAnnual),
-      band.payCells.join(" | "),
-    ]);
-
-    downloadCSV([
-      ["Position", "Salary Band", "Start Basic", "Max Basic", "Start Inclusive Salary", "Start CTC", "Pay Cells"],
-      ...rows,
-    ], "wpu-goa-back-calculated-ranges.csv");
-  };
-
   const handleCopyValue = (val: number, label: string) => {
     navigator.clipboard.writeText(String(val)).then(() => {
       toast.success(`Copied ${label} value to clipboard`);
@@ -193,7 +175,6 @@ export default function PayMatrixPage() {
   const [compColumns, setCompColumns] = useState<Set<CompensationColumnKey>>(new Set(DEFAULT_COMPENSATION_COLUMNS));
   const [showCompOthers, setShowCompOthers] = useState(false);
   const [compSearch, setCompSearch] = useState("");
-  const [wpuSearch, setWpuSearch] = useState("");
 
   const mult = isAnnual ? 12 : 1;
 
@@ -333,14 +314,6 @@ export default function PayMatrixPage() {
     });
   };
 
-  const wpuGoaBands = useMemo(() => backCalculateWpuGoaBands(settings), [settings]);
-
-  const filteredWpuGoaBands = useMemo(() => {
-    const query = wpuSearch.trim().toLowerCase();
-    if (!query) return wpuGoaBands;
-    return wpuGoaBands.filter((band) => band.title.toLowerCase().includes(query));
-  }, [wpuGoaBands, wpuSearch]);
-
   const LevelCheckboxes = ({ 
     selected, 
     onToggle, 
@@ -404,10 +377,9 @@ export default function PayMatrixPage() {
       </div>
 
       <Tabs defaultValue="matrix">
-        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:w-auto">
           <TabsTrigger value="matrix">Pay Matrix</TabsTrigger>
           <TabsTrigger value="compensation">Compensation Table</TabsTrigger>
-          <TabsTrigger value="wpu-goa">WPU Goa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="matrix" className="space-y-4">
@@ -820,138 +792,6 @@ export default function PayMatrixPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="wpu-goa" className="space-y-4">
-          <Card>
-            <CardHeader className="space-y-4 pb-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <CardTitle className="text-base">WPU Goa Salary Back-Calculator</CardTitle>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Bands are annual inclusive salary targets. Perks are added after this to calculate CTC.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="hidden sm:flex items-center gap-2">
-                    <Label htmlFor="wpu-compact" className="text-[10px] uppercase tracking-wider text-muted-foreground">Compact</Label>
-                    <Switch id="wpu-compact" checked={isCompact} onCheckedChange={setIsCompact} className="scale-75" />
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-2" onClick={handleExportWpuGoa} disabled={filteredWpuGoaBands.length === 0}>
-                    <Download className="h-3.5 w-3.5" />
-                    Export CSV
-                  </Button>
-                </div>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={wpuSearch}
-                    onChange={(event) => setWpuSearch(event.target.value)}
-                    placeholder="Search WPU Goa position"
-                    className="pl-9"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <Badge variant="secondary" className="font-normal">{filteredWpuGoaBands.length} positions</Badge>
-                  <Badge variant="secondary" className="font-normal">DA {(settings.daPercent * 100).toFixed(0)}%</Badge>
-                  <Badge variant="secondary" className="font-normal">HRA {settings.hraEnabled ? `${(settings.hraPercent * 100).toFixed(0)}%` : "off"}</Badge>
-                  <Badge variant="secondary" className="font-normal">Perks {fmt(settings.housingSupport + settings.cpda + settings.healthInsurance)}</Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {filteredWpuGoaBands.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No WPU Goa positions match your search.</p>
-              ) : (
-                <div className="grid gap-4">
-                  {filteredWpuGoaBands.map((band) => (
-                    <Card key={band.id} className="overflow-hidden border-border/80">
-                      <CardHeader className="bg-muted/30 pb-3">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                          <div>
-                            <CardTitle className="text-base">{band.title}</CardTitle>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Badge variant="outline" className="font-normal">Band {band.salaryRangeLpa[0]}-{band.salaryRangeLpa[1]} LPA</Badge>
-                              <Badge variant="secondary" className="font-normal">Start basic {fmt(band.minBasicPay)}</Badge>
-                              <Badge variant="secondary" className="font-normal">Max basic {fmt(band.maxBasicPay)}</Badge>
-                            </div>
-                          </div>
-                          <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px]">
-                            <div className="rounded-md border bg-card px-3 py-2">
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Start inclusive salary</p>
-                              <p className="text-lg font-semibold">{fmt(band.startInclusiveAnnual)}</p>
-                            </div>
-                            <div className="rounded-md border bg-card px-3 py-2">
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Start CTC with perks</p>
-                              <p className="text-lg font-semibold text-primary">{fmt(band.startCtcAnnual)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="overflow-auto">
-                          <Table className={isCompact ? "text-[10px]" : ""}>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className={isCompact ? "h-8 px-2" : ""}>Cell</TableHead>
-                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Basic</TableHead>
-                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Inclusive Salary</TableHead>
-                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Perks</TableHead>
-                                <TableHead className={`text-right font-semibold ${isCompact ? "h-8 px-2" : ""}`}>CTC</TableHead>
-                                <TableHead className={`text-right ${isCompact ? "h-8 px-2" : ""}`}>Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {band.payCells.map((basicPay, index) => {
-                                const inclusiveAnnual = getWpuGoaInclusiveAnnual(basicPay, settings);
-                                const ctcAnnual = getWpuGoaCtcAnnual(basicPay, settings);
-                                return (
-                                  <TableRow key={`${band.id}-${basicPay}`} className="hover:bg-muted/40">
-                                    <TableCell className={`${index === 0 ? "font-bold text-primary" : ""} ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                                      {index + 1}{index === 0 ? " ★" : ""}
-                                    </TableCell>
-                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(basicPay)}</TableCell>
-                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(inclusiveAnnual)}</TableCell>
-                                    <TableCell className={`text-right text-muted-foreground ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(settings.housingSupport + settings.cpda + settings.healthInsurance)}</TableCell>
-                                    <TableCell className={`text-right font-semibold text-primary ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>{fmt(ctcAnnual)}</TableCell>
-                                    <TableCell className={`text-right ${isCompact ? "h-7 py-0.5 px-2 text-[10px]" : "text-xs"}`}>
-                                      <div className="flex justify-end gap-1">
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-7 px-2"
-                                          onClick={() =>
-                                            setSelectedCell({
-                                              levelId: band.id,
-                                              levelName: band.title,
-                                              designation: "WPU Goa",
-                                              cellIndex: index,
-                                              basicPay,
-                                            })
-                                          }
-                                        >
-                                          Bifurcate
-                                        </Button>
-                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopyValue(ctcAnnual, `${band.title} CTC`)}>
-                                          <Copy className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       <Dialog open={!!selectedCell} onOpenChange={(open) => !open && setSelectedCell(null)}>

@@ -5,6 +5,7 @@ export interface WpuGoaBandInput {
   id: string;
   title: string;
   salaryRangeLpa: [number, number];
+  criteria: string;
 }
 
 export interface WpuGoaCalculatedBand extends WpuGoaBandInput {
@@ -18,11 +19,36 @@ export interface WpuGoaCalculatedBand extends WpuGoaBandInput {
 }
 
 export const WPU_GOA_BANDS: WpuGoaBandInput[] = [
-  { id: "assistant-professor-1", title: "Assistant Professor I", salaryRangeLpa: [15, 20] },
-  { id: "assistant-professor-2", title: "Assistant Professor II", salaryRangeLpa: [18, 22] },
-  { id: "assistant-professor-3", title: "Assistant Professor III", salaryRangeLpa: [20, 28] },
-  { id: "associate-professor", title: "Associate Professor", salaryRangeLpa: [24, 38] },
-  { id: "professor", title: "Professor", salaryRangeLpa: [34, 65] },
+  {
+    id: "assistant-professor-1",
+    title: "Assistant Professor I",
+    salaryRangeLpa: [15, 20],
+    criteria: "Entry faculty band. Use for early-career candidates meeting minimum teaching eligibility.",
+  },
+  {
+    id: "assistant-professor-2",
+    title: "Assistant Professor II",
+    salaryRangeLpa: [18, 22],
+    criteria: "Strong assistant professor band. Use for candidates with stronger teaching/research evidence.",
+  },
+  {
+    id: "assistant-professor-3",
+    title: "Assistant Professor III",
+    salaryRangeLpa: [20, 28],
+    criteria: "Senior assistant professor band. Use for high-potential candidates with meaningful academic output.",
+  },
+  {
+    id: "associate-professor",
+    title: "Associate Professor",
+    salaryRangeLpa: [24, 38],
+    criteria: "Associate professor band. Use for established faculty with leadership, research, and program contribution.",
+  },
+  {
+    id: "professor",
+    title: "Professor",
+    salaryRangeLpa: [34, 65],
+    criteria: "Professor band. Use for senior faculty with institution-building, scholarship, and academic leadership.",
+  },
 ];
 
 export function getWpuGoaInclusiveAnnual(basicPay: number, settings: GlobalSettings): number {
