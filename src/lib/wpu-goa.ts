@@ -1,11 +1,13 @@
 import { calculateSalary, roundUpTo100 } from "./salary-engine";
 import { GlobalSettings } from "./types";
+import { getLevelById } from "./pay-matrix-data";
 
 export interface WpuGoaBandInput {
   id: string;
   title: string;
   salaryRangeLpa: [number, number];
   criteria: string;
+  ugcAnchorLevelId: string;
 }
 
 export interface WpuGoaCalculatedBand extends WpuGoaBandInput {
@@ -16,6 +18,10 @@ export interface WpuGoaCalculatedBand extends WpuGoaBandInput {
   payCells: number[];
   startInclusiveAnnual: number;
   startCtcAnnual: number;
+  ugcAnchorLabel: string;
+  ugcAnchorEntryPay: number;
+  nearestUgcBasicPay: number;
+  nearestUgcCellIndex: number;
 }
 
 export const WPU_GOA_BANDS: WpuGoaBandInput[] = [
@@ -24,30 +30,35 @@ export const WPU_GOA_BANDS: WpuGoaBandInput[] = [
     title: "Assistant Professor I",
     salaryRangeLpa: [15, 20],
     criteria: "Entry faculty band. Use for early-career candidates meeting minimum teaching eligibility.",
+    ugcAnchorLevelId: "L10",
   },
   {
     id: "assistant-professor-2",
     title: "Assistant Professor II",
     salaryRangeLpa: [18, 22],
     criteria: "Strong assistant professor band. Use for candidates with stronger teaching/research evidence.",
+    ugcAnchorLevelId: "L11",
   },
   {
     id: "assistant-professor-3",
     title: "Assistant Professor III",
     salaryRangeLpa: [20, 28],
     criteria: "Senior assistant professor band. Use for high-potential candidates with meaningful academic output.",
+    ugcAnchorLevelId: "L12",
   },
   {
     id: "associate-professor",
     title: "Associate Professor",
     salaryRangeLpa: [24, 38],
     criteria: "Associate professor band. Use for established faculty with leadership, research, and program contribution.",
+    ugcAnchorLevelId: "L13A2",
   },
   {
     id: "professor",
     title: "Professor",
     salaryRangeLpa: [34, 65],
     criteria: "Professor band. Use for senior faculty with institution-building, scholarship, and academic leadership.",
+    ugcAnchorLevelId: "L14A",
   },
 ];
 
@@ -111,6 +122,33 @@ function generateWpuGoaPayCells(minBasicPay: number, maxBasicPay: number): numbe
   return cells;
 }
 
+function getNearestUgcCell(ugcAnchorLevelId: string, targetBasicPay: number) {
+  const level = getLevelById(ugcAnchorLevelId);
+  if (!level) {
+    return {
+      ugcAnchorLabel: ugcAnchorLevelId,
+      ugcAnchorEntryPay: 0,
+      nearestUgcBasicPay: targetBasicPay,
+      nearestUgcCellIndex: 0,
+    };
+  }
+
+  const nearest = level.payCells.reduce(
+    (best, pay, index) => {
+      const distance = Math.abs(pay - targetBasicPay);
+      return distance < best.distance ? { pay, index, distance } : best;
+    },
+    { pay: level.payCells[0], index: 0, distance: Math.abs(level.payCells[0] - targetBasicPay) },
+  );
+
+  return {
+    ugcAnchorLabel: `${level.levelName} · ${level.designation}`,
+    ugcAnchorEntryPay: level.revisedEntryPay,
+    nearestUgcBasicPay: nearest.pay,
+    nearestUgcCellIndex: nearest.index,
+  };
+}
+
 export function backCalculateWpuGoaBands(
   settings: GlobalSettings,
   bands: WpuGoaBandInput[] = WPU_GOA_BANDS,
@@ -120,6 +158,7 @@ export function backCalculateWpuGoaBands(
     const maxAnnualSalary = band.salaryRangeLpa[1] * 100000;
     const minBasicPay = findFirstBasicAtOrAbove(minAnnualSalary, settings);
     const maxBasicPay = findLastBasicAtOrBelow(maxAnnualSalary, settings);
+    const ugcAnchor = getNearestUgcCell(band.ugcAnchorLevelId, minBasicPay);
 
     return {
       ...band,
@@ -130,6 +169,7 @@ export function backCalculateWpuGoaBands(
       payCells: generateWpuGoaPayCells(minBasicPay, maxBasicPay),
       startInclusiveAnnual: getWpuGoaInclusiveAnnual(minBasicPay, settings),
       startCtcAnnual: getWpuGoaCtcAnnual(minBasicPay, settings),
+      ...ugcAnchor,
     };
   });
 }

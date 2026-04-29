@@ -11,6 +11,9 @@ describe("WPU Goa salary back-calculation", () => {
       title: "Assistant Professor I",
       salaryRangeLpa: [15, 20],
       criteria: expect.stringContaining("Entry faculty"),
+      ugcAnchorLevelId: "L10",
+      ugcAnchorEntryPay: 68800,
+      nearestUgcBasicPay: 66800,
       minBasicPay: 67600,
       maxBasicPay: 91000,
     });
@@ -29,5 +32,17 @@ describe("WPU Goa salary back-calculation", () => {
     expect(professor!.salaryRangeLpa).toEqual([34, 65]);
     expect(professor!.startInclusiveAnnual).toBe(getWpuGoaInclusiveAnnual(professor!.minBasicPay, DEFAULT_SETTINGS));
     expect(professor!.startCtcAnnual).toBe(professor!.startInclusiveAnnual + DEFAULT_SETTINGS.housingSupport + DEFAULT_SETTINGS.cpda + DEFAULT_SETTINGS.healthInsurance);
+  });
+
+  it("keeps WPU Goa positions anchored to nearby UGC academic levels", () => {
+    const bands = backCalculateWpuGoaBands(DEFAULT_SETTINGS);
+
+    expect(bands.map((band) => [band.title, band.ugcAnchorLevelId])).toEqual([
+      ["Assistant Professor I", "L10"],
+      ["Assistant Professor II", "L11"],
+      ["Assistant Professor III", "L12"],
+      ["Associate Professor", "L13A2"],
+      ["Professor", "L14A"],
+    ]);
   });
 });
